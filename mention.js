@@ -1,6 +1,61 @@
 /*jslint forin: true */
 
 ;(function($) {
+    var typeaheadPatched = false,
+        patchTypeahead = function () {
+            if (typeaheadPatched) {
+                return;
+            }
+
+            typeaheadPatched = true;
+
+            var originalRender = $.fn.typeahead.Constructor.prototype.render,
+                mentionsRender = function(items) {
+                    var that = this;
+
+                    items = $(items).map(function(i, item) {
+                        i = $(that.options.item).attr('data-value', item.username);
+
+                        var _linkHtml = $('<div />');
+
+                        if (item.image) {
+                            _linkHtml.append('<img class="mention_image" src="' + item.image + '">');
+                        }
+                        if (item.name) {
+                            _linkHtml.append('<b class="mention_name">' + item.name + '</b>');
+                        }
+                        if (item.username) {
+                            _linkHtml.append('<span class="mention_username"> ' + that.$element.data('mention-js-delimiter') + item.username + '</span>');
+                        }
+
+                        i.find('a').html(that.highlighter(_linkHtml.html()));
+                        return i[0];
+                    });
+
+                    items.first().addClass('active');
+                    this.$menu.html(items);
+                    return this;
+                },
+                isMentionItemsList = function (items) {
+                    if (items.length === 0) {
+                        return false;
+                    }
+
+                    var result = false;
+                    $.each(items, function (_idx, item) {
+                        if (typeof(item) !== 'string') {
+                            result = true;
+                            return false;
+                        }
+                    });
+                    return result;
+                };
+
+        $.fn.typeahead.Constructor.prototype.render = function (items) {
+             return (isMentionItemsList(items) ? mentionsRender : originalRender).call(this, items);
+        };
+    };
+
     $.fn.extend({
         mention: function(options) {
             this.opts = {
@@ -120,35 +175,9 @@
                         }
                     }
                     return items;
-                },
-                _render = function(items) {
-                    var that = this;
-                    items = $(items).map(function(i, item) {
-
-                        i = $(that.options.item).attr('data-value', item.username);
-
-                        var _linkHtml = $('<div />');
-
-                        if (item.image) {
-                            _linkHtml.append('<img class="mention_image" src="' + item.image + '">');
-                        }
-                        if (item.name) {
-                            _linkHtml.append('<b class="mention_name">' + item.name + '</b>');
-                        }
-                        if (item.username) {
-                            _linkHtml.append('<span class="mention_username"> ' + settings.delimiter + item.username + '</span>');
-                        }
-
-                        i.find('a').html(that.highlighter(_linkHtml.html()));
-                        return i[0];
-                    });
-
-                    items.first().addClass('active');
-                    this.$menu.html(items);
-                    return this;
                 };
 
-            $.fn.typeahead.Constructor.prototype.render = _render;
+            patchTypeahead();
 
             return this.each(function() {
                 var _this = $(this);
@@ -159,6 +188,8 @@
                         updater: _updater,
                         sorter: _sorter
                     }, settings.typeaheadOpts));
+
+                    _this.data('mention-js-delimiter', settings.delimiter);
                 }
             });
         }
